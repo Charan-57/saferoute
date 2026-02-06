@@ -1,55 +1,148 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"/>
+
 <title>SafeRoute AI</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
 <style>
+:root{
+--bg:#f6f7fb;
+--card:#ffffff;
+--text:#111;
+--primary:linear-gradient(135deg,#4f46e5,#0ea5e9);
+}
+
+[data-theme="dark"]{
+--bg:#0f172a;
+--card:#020617;
+--text:#f8fafc;
+}
+
+*{box-sizing:border-box;font-family:Inter}
+
 body{
 margin:0;
-font-family:Arial;
+background:var(--bg);
+color:var(--text);
+transition:.3s;
 }
 
 #app{
 display:grid;
-grid-template-columns:320px 1fr;
+grid-template-columns:340px 1fr;
 height:100vh;
 }
 
+/* SIDEBAR */
+
 #sidebar{
-padding:15px;
-background:#fff;
-box-shadow:2px 0 10px rgba(0,0,0,.1);
-z-index:1000;
+padding:20px;
+background:var(--card);
+box-shadow:0 0 30px rgba(0,0,0,.1);
+display:flex;
+flex-direction:column;
+gap:14px;
 }
 
-#map{height:100vh}
+/* HEADER */
 
-input,textarea,select,button{
+.brand{
+display:flex;
+align-items:center;
+gap:10px;
+font-weight:700;
+font-size:20px;
+}
+
+.logo{
+width:34px;
+height:34px;
+border-radius:8px;
+background:var(--primary);
+display:flex;
+align-items:center;
+justify-content:center;
+color:white;
+font-weight:700;
+}
+
+/* INPUTS */
+
+input,textarea,select{
 width:100%;
-padding:8px;
-margin:6px 0;
+padding:10px;
+border-radius:8px;
+border:1px solid #ddd;
+background:transparent;
+color:var(--text);
 }
+
+textarea{resize:none;height:70px}
+
+/* BUTTONS */
 
 button{
-background:#0b69ff;
+padding:10px;
 border:none;
+border-radius:10px;
+background:var(--primary);
 color:white;
+font-weight:600;
 cursor:pointer;
+transition:.2s;
 }
+
+button:hover{opacity:.9;transform:scale(1.01)}
+
+.secondary{
+background:#e5e7eb;
+color:black;
+}
+
+[data-theme="dark"] .secondary{
+background:#1e293b;
+color:white;
+}
+
+/* MAP */
+
+#map{
+height:100vh;
+}
+
+/* REPORT CARD */
 
 #reportPanel{
 display:none;
-margin-top:10px;
-border-top:1px solid #ddd;
-padding-top:10px;
+background:var(--card);
+padding:12px;
+border-radius:12px;
+box-shadow:0 10px 25px rgba(0,0,0,.15);
 }
 
-.red{color:red;font-weight:700}
+/* TOGGLE */
+
+.toggle{
+cursor:pointer;
+padding:6px 10px;
+border-radius:8px;
+background:#eee;
+font-size:12px;
+text-align:center;
+}
+
+[data-theme="dark"] .toggle{
+background:#1e293b;
+}
+
+.small{font-size:12px;opacity:.7}
 </style>
 </head>
 
@@ -59,28 +152,51 @@ padding-top:10px;
 
 <div id="sidebar">
 
-<h3>SafeRoute AI</h3>
+<div class="brand">
+<div class="logo">SR</div>
+SafeRoute AI
+</div>
 
-<input id="src" placeholder="Source">
-<input id="dst" placeholder="Destination">
+<div class="toggle" onclick="toggleTheme()">🌗 Light/Dark mode</div>
 
-<button onclick="route()">Find Route</button>
-<button onclick="toggleReport()">Report / Comment</button>
-<button onclick="heat()">Heatmap</button>
+<input id="src" placeholder="📍 Source">
+<input id="dst" placeholder="🎯 Destination">
+
+<button onclick="route()">Find Safe Route</button>
+<button class="secondary" onclick="toggleReport()">Report / Comment</button>
+<button class="secondary" onclick="heat()">Crime Heatmap</button>
 
 <div id="reportPanel">
 
-<input id="area" placeholder="Area (auto-filled from map)">
+<div class="small">Click map to select area</div>
+
+<input id="area" placeholder="Area">
 
 <select id="rtype">
-<option value="crime">Crime</option>
-<option value="comment">Comment</option>
+<option value="">Select Report Type</option>
+
+<option value="theft">🚨 Theft / Robbery</option>
+<option value="harassment">🧍 Harassment</option>
+<option value="rash-driving">🚗 Rash Driving</option>
+<option value="accident">🚦 Traffic Accident</option>
+<option value="drunk-driving">💊 Drunk Driving</option>
+<option value="suspicious">👥 Suspicious Activity</option>
+<option value="assault">🧑‍🤝‍🧑 Assault / Fight</option>
+<option value="snatching">🔪 Chain Snatching</option>
+<option value="vehicle-break">🅿️ Vehicle Break-in</option>
+
+<option value="comment">💬 General Comment</option>
 </select>
 
-<textarea id="msg" placeholder="Describe..."></textarea>
 
-<button onclick="submitReport()">Submit</button>
+<textarea id="msg" placeholder="Describe incident..."></textarea>
 
+<button onclick="submitReport()">Submit Report</button>
+
+</div>
+
+<div class="small">
+AI + OpenStreetMap + Community Safety
 </div>
 
 </div>
@@ -91,7 +207,14 @@ padding-top:10px;
 
 <script>
 
-const map=L.map("map").setView([17.385,78.4867],13);
+document.documentElement.setAttribute("data-theme","light");
+
+function toggleTheme(){
+let t=document.documentElement.getAttribute("data-theme");
+document.documentElement.setAttribute("data-theme",t=="dark"?"light":"dark");
+}
+
+const map=L.map("map").setView([17.385,78.4867],8);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
@@ -101,13 +224,11 @@ window.crimeMarkers=[];
 
 map.on("click",e=>{
 clickedPoint=e.latlng;
-document.getElementById("area").value=
-`${e.latlng.lat.toFixed(4)},${e.latlng.lng.toFixed(4)}`;
+area.value=`${e.latlng.lat.toFixed(4)},${e.latlng.lng.toFixed(4)}`;
 });
 
 function toggleReport(){
-let p=document.getElementById("reportPanel");
-p.style.display=p.style.display=="block"?"none":"block";
+reportPanel.style.display=reportPanel.style.display=="block"?"none":"block";
 }
 
 async function route(){
@@ -130,22 +251,21 @@ let j=await r.json();
 
 j.routes.forEach((x,i)=>{
 let c=x.polyline.map(p=>[p[1],p[0]]);
-layers.push(L.polyline(c,{color:i==0?"green":"red"}).addTo(map));
+layers.push(L.polyline(c,{color:i==0?"#22c55e":"#ef4444",weight:5}).addTo(map));
 });
 
 map.fitBounds(layers[0].getBounds());
 
-// LOAD CRIME POINTS
 let cr=await fetch("/crimes");
 let cj=await cr.json();
 
 cj.forEach(p=>{
 let m=L.circleMarker([p.lat,p.lon],{
-radius:8,
-color:"red",
-fillColor:"red",
+radius:7,
+color:"#ef4444",
+fillColor:"#ef4444",
 fillOpacity:.8
-}).addTo(map).bindPopup("🚨 Reported Crime");
+}).addTo(map).bindPopup("🚨 Reported Area");
 window.crimeMarkers.push(m);
 });
 }
@@ -153,7 +273,7 @@ window.crimeMarkers.push(m);
 async function submitReport(){
 
 if(!clickedPoint){
-alert("Click on map to choose location");
+alert("Click on map first");
 return;
 }
 
@@ -165,7 +285,7 @@ lon:clickedPoint.lng,
 type:msg.value
 })});
 
-alert("Crime reported");
+alert("Report submitted");
 msg.value="";
 }
 
@@ -173,7 +293,7 @@ async function heat(){
 let r=await fetch("/heatmap");
 let j=await r.json();
 if(heatLayer) map.removeLayer(heatLayer);
-heatLayer=L.heatLayer(j,{radius:40}).addTo(map);
+heatLayer=L.heatLayer(j,{radius:40,blur:20}).addTo(map);
 }
 
 </script>
