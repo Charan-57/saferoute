@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SafeRoute AI</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+}
+
+#app{
+display:grid;
+grid-template-columns:320px 1fr;
+height:100vh;
+}
+
+#sidebar{
+padding:15px;
+background:#fff;
+box-shadow:2px 0 10px rgba(0,0,0,.1);
+z-index:1000;
+}
+
+#map{height:100vh}
+
+input,textarea,select,button{
+width:100%;
+padding:8px;
+margin:6px 0;
+}
+
+button{
+background:#0b69ff;
+border:none;
+color:white;
+cursor:pointer;
+}
+
+#reportPanel{
+display:none;
+margin-top:10px;
+border-top:1px solid #ddd;
+padding-top:10px;
+}
+
+.red{color:red;font-weight:700}
+</style>
+</head>
+
+<body>
+
+<div id="app">
+
+<div id="sidebar">
+
+<h3>SafeRoute AI</h3>
+
+<input id="src" placeholder="Source">
+<input id="dst" placeholder="Destination">
+
+<button onclick="route()">Find Route</button>
+<button onclick="toggleReport()">Report / Comment</button>
+<button onclick="heat()">Heatmap</button>
+
+<div id="reportPanel">
+
+<input id="area" placeholder="Area (auto-filled from map)">
+
+<select id="rtype">
+<option value="crime">Crime</option>
+<option value="comment">Comment</option>
+</select>
+
+<textarea id="msg" placeholder="Describe..."></textarea>
+
+<button onclick="submitReport()">Submit</button>
+
+</div>
+
+</div>
+
+<div id="map"></div>
+
+</div>
+
+<script>
+
+const map=L.map("map").setView([17.385,78.4867],13);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+let layers=[],heatLayer;
+let clickedPoint=null;
+window.crimeMarkers=[];
+
+map.on("click",e=>{
+clickedPoint=e.latlng;
+document.getElementById("area").value=
+`${e.latlng.lat.toFixed(4)},${e.latlng.lng.toFixed(4)}`;
+});
+
+function toggleReport(){
+let p=document.getElementById("reportPanel");
+p.style.display=p.style.display=="block"?"none":"block";
+}
+
+async function route(){
+
+layers.forEach(l=>map.removeLayer(l));
+layers=[];
+
+window.crimeMarkers.forEach(m=>map.removeLayer(m));
+window.crimeMarkers=[];
+
+let r=await fetch("/route",{method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+source:src.value,
+destination:dst.value,
+time:"21:00"
+})});
+
+let j=await r.json();
+
+j.routes.forEach((x,i)=>{
+let c=x.polyline.map(p=>[p[1],p[0]]);
+layers.push(L.polyline(c,{color:i==0?"green":"red"}).addTo(map));
+});
+
+map.fitBounds(layers[0].getBounds());
+
+// LOAD CRIME POINTS
+let cr=await fetch("/crimes");
+let cj=await cr.json();
+
+cj.forEach(p=>{
+let m=L.circleMarker([p.lat,p.lon],{
+radius:8,
+color:"red",
+fillColor:"red",
+fillOpacity:.8
+}).addTo(map).bindPopup("🚨 Reported Crime");
+window.crimeMarkers.push(m);
+});
+}
+
+async function submitReport(){
+
+if(!clickedPoint){
+alert("Click on map to choose location");
+return;
+}
+
+await fetch("/report",{method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+lat:clickedPoint.lat,
+lon:clickedPoint.lng,
+type:msg.value
+})});
+
+alert("Crime reported");
+msg.value="";
+}
+
+async function heat(){
+let r=await fetch("/heatmap");
+let j=await r.json();
+if(heatLayer) map.removeLayer(heatLayer);
+heatLayer=L.heatLayer(j,{radius:40}).addTo(map);
+}
+
+</script>
+
+</body>
+</html>
