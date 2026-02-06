@@ -58,7 +58,7 @@ SafeRoute AI provides:
 - FastAPI (Python)
 
 ### Machine Learning
-- Scikit-learn (Logistic Regression)
+- Scikit-learn (Gradient Boosting Classifier)
 
 ### Maps & Routing
 - OpenStreetMap  
