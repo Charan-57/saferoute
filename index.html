@@ -40,8 +40,6 @@ grid-template-columns:340px 1fr;
 height:100vh;
 }
 
-/* SIDEBAR */
-
 #sidebar{
 padding:20px;
 background:var(--card);
@@ -50,8 +48,6 @@ display:flex;
 flex-direction:column;
 gap:14px;
 }
-
-/* HEADER */
 
 .brand{
 display:flex;
@@ -73,8 +69,6 @@ color:white;
 font-weight:700;
 }
 
-/* INPUTS */
-
 input,textarea,select{
 width:100%;
 padding:10px;
@@ -85,8 +79,6 @@ color:var(--text);
 }
 
 textarea{resize:none;height:70px}
-
-/* BUTTONS */
 
 button{
 padding:10px;
@@ -111,13 +103,10 @@ background:#1e293b;
 color:white;
 }
 
-/* MAP */
-
 #map{
+display:none;
 height:100vh;
 }
-
-/* REPORT CARD */
 
 #reportPanel{
 display:none;
@@ -126,8 +115,6 @@ padding:12px;
 border-radius:12px;
 box-shadow:0 10px 25px rgba(0,0,0,.15);
 }
-
-/* TOGGLE */
 
 .toggle{
 cursor:pointer;
@@ -157,12 +144,15 @@ background:#1e293b;
 SafeRoute AI
 </div>
 
-<div class="toggle" onclick="toggleTheme()">🌗 Light/Dark mode</div>
+<div class="toggle" onclick="toggleTheme()">🎨 Appearance</div>
 
 <input id="src" placeholder="📍 Source">
 <input id="dst" placeholder="🎯 Destination">
 
 <button onclick="route()">Find Safe Route</button>
+
+<button style="background:linear-gradient(90deg,#ff4b2b,#ff416c)" onclick="sendSOS()">🚨 SOS Emergency</button>
+
 <button class="secondary" onclick="toggleReport()">Report / Comment</button>
 <button class="secondary" onclick="heat()">Crime Heatmap</button>
 
@@ -174,7 +164,6 @@ SafeRoute AI
 
 <select id="rtype">
 <option value="">Select Report Type</option>
-
 <option value="theft">🚨 Theft / Robbery</option>
 <option value="harassment">🧍 Harassment</option>
 <option value="rash-driving">🚗 Rash Driving</option>
@@ -184,10 +173,8 @@ SafeRoute AI
 <option value="assault">🧑‍🤝‍🧑 Assault / Fight</option>
 <option value="snatching">🔪 Chain Snatching</option>
 <option value="vehicle-break">🅿️ Vehicle Break-in</option>
-
 <option value="comment">💬 General Comment</option>
 </select>
-
 
 <textarea id="msg" placeholder="Describe incident..."></textarea>
 
@@ -214,18 +201,20 @@ let t=document.documentElement.getAttribute("data-theme");
 document.documentElement.setAttribute("data-theme",t=="dark"?"light":"dark");
 }
 
-const map=L.map("map").setView([17.385,78.4867],8);
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-
+let map=null;
 let layers=[],heatLayer;
 let clickedPoint=null;
 window.crimeMarkers=[];
+
+function initMap(){
+map=L.map("map").setView([17.385,78.4867],8);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
 map.on("click",e=>{
 clickedPoint=e.latlng;
 area.value=`${e.latlng.lat.toFixed(4)},${e.latlng.lng.toFixed(4)}`;
 });
+}
 
 function toggleReport(){
 reportPanel.style.display=reportPanel.style.display=="block"?"none":"block";
@@ -233,11 +222,15 @@ reportPanel.style.display=reportPanel.style.display=="block"?"none":"block";
 
 async function route(){
 
+if(!map){
+document.getElementById("map").style.display="block";
+initMap();
+}
+
 layers.forEach(l=>map.removeLayer(l));
 layers=[];
-
-window.crimeMarkers.forEach(m=>map.removeLayer(m));
-window.crimeMarkers=[];
+crimeMarkers.forEach(m=>map.removeLayer(m));
+crimeMarkers=[];
 
 let r=await fetch("/route",{method:"POST",
 headers:{"Content-Type":"application/json"},
@@ -266,7 +259,7 @@ color:"#ef4444",
 fillColor:"#ef4444",
 fillOpacity:.8
 }).addTo(map).bindPopup("🚨 Reported Area");
-window.crimeMarkers.push(m);
+crimeMarkers.push(m);
 });
 }
 
@@ -282,7 +275,8 @@ headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
 lat:clickedPoint.lat,
 lon:clickedPoint.lng,
-type:msg.value
+type:rtype.value,
+message:msg.value
 })});
 
 alert("Report submitted");
@@ -294,6 +288,29 @@ let r=await fetch("/heatmap");
 let j=await r.json();
 if(heatLayer) map.removeLayer(heatLayer);
 heatLayer=L.heatLayer(j,{radius:40,blur:20}).addTo(map);
+}
+
+function sendSOS(){
+
+if(!navigator.geolocation){
+alert("Location not supported");
+return;
+}
+
+navigator.geolocation.getCurrentPosition(async pos=>{
+
+await fetch("/sos",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+lat:pos.coords.latitude,
+lon:pos.coords.longitude,
+time:new Date().toISOString()
+})
+});
+
+alert("🚨 SOS sent with live location!");
+});
 }
 
 </script>
