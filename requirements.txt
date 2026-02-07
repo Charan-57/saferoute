@@ -1,7 +1,4 @@
 fastapi
 uvicorn
-numpy
+numpy<2
 httpx
-leaflet
-smtplib
-email
