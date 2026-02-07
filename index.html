@@ -305,24 +305,34 @@ map.fitBounds(layers[0].getBounds());
 let cr=await fetch("/crimes");
 let cj=await cr.json();
 
-cj.forEach(p=>{
-let popup = `
-<b>🚨 Crime:</b> ${p.type}<br>
-<b>🕒 Time:</b> ${p.time || "Unknown"}
-`;
+const redRoute = layers[1]?.getLatLngs() || [];
 
-let m = L.circleMarker([p.lat,p.lon],{
-radius:7,
+function nearRed(lat, lon) {
+  return redRoute.some(pt =>
+    Math.abs(pt.lat - lat) < 0.01 &&
+    Math.abs(pt.lng - lon) < 0.01
+  );
+}
+
+cj.forEach(p=>{
+
+if(!nearRed(p.lat,p.lon)) return;   // ONLY RED ROUTE
+
+let m=L.circleMarker([p.lat,p.lon],{
+radius:8,
 color:"#ef4444",
 fillColor:"#ef4444",
-fillOpacity:.8
-})
-.addTo(map)
-.bindPopup(popup);
+fillOpacity:.9
+}).addTo(map).bindPopup(`
+🚨 ${p.type}<br>
+🕒 ${p.time || "Unknown"}
+`);
 
 crimeMarkers.push(m);
+
 });
 
+}
 
 async function submitReport(){
 
