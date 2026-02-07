@@ -84,6 +84,35 @@ SafeRoute AI provides:
 
 ---
 
+🖥 What Frontend Does
+User Interaction
+Takes Source & Destination
+Shows Map
+Displays:
+Safe route (green)
+Risky route (red)
+Allows:
+Crime reporting
+Heatmap view
+SOS emergency
+Comments
+
+---
+User Browser
+     ↓
+Frontend (HTML + JS + Leaflet)
+     ↓
+FastAPI Backend
+     ↓
+OpenStreetMap + OSRM + AI Model
+     ↓
+Risk Scores
+     ↓
+Return to Frontend
+     ↓
+Rendered on Map
+---
+
 ## 🌍 Live Demo
 
 👉 https://saferoute-production-8593.up.railway.app
