@@ -180,7 +180,7 @@ def root():
 def send_email_alert(lat, lon):
 
     EMAIL = "nagacharanmedoji@gmail.com"
-    PASSWORD = "nfqt bbgi qsda ovcm"
+    PASSWORD = "nfqtbbgiqsdaovcm"   # NO SPACES
     TO = "ajaykumarraovemula2004@gmail.com"
 
     msg = EmailMessage()
@@ -202,7 +202,11 @@ Live Map:
 {maps}
 """)
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(EMAIL, PASSWORD)
-        server.send_message(msg)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(EMAIL, PASSWORD)
+            server.send_message(msg)
+            print("✅ SOS Email Sent")
 
+    except Exception as e:
+        print("❌ Email failed:", e)
