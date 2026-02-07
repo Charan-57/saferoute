@@ -2,12 +2,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
 import json, os, math
 import numpy as np
 import httpx
 import smtplib
 from email.message import EmailMessage
 
+# ---------------- APP SETUP ----------------
 
 app = FastAPI()
 
@@ -31,118 +33,100 @@ def load(path):
 def save(path, data):
     json.dump(data, open(path,"w"), indent=2)
 
-# ---------- MODELS ----------
+# ---------------- MODELS ----------------
 
 class RouteReq(BaseModel):
-    source:str
-    destination:str
-    time:str
+    source: str
+    destination: str
+    time: str
 
 class CrimeReport(BaseModel):
-    lat:float
-    lon:float
-    type:str
+    lat: float
+    lon: float
+    type: str
 
 class Comment(BaseModel):
-    place_id:str
-    text:str
+    place_id: str
+    text: str
 
 class Vote(BaseModel):
-    place_id:str
-    idx:int
-    delta:int
+    place_id: str
+    idx: int
+    delta: int
 
-# ---------- BASIC UTILS ----------
+# ---------------- UTILS ----------------
 
 def hav(a,b,c,d):
-    R=6371
-    dlat=math.radians(c-a)
-    dlon=math.radians(d-b)
-    x=math.sin(dlat/2)**2+math.cos(math.radians(a))*math.cos(math.radians(c))*math.sin(dlon/2)**2
+    R = 6371
+    dlat = math.radians(c-a)
+    dlon = math.radians(d-b)
+    x = math.sin(dlat/2)**2 + math.cos(math.radians(a))*math.cos(math.radians(c))*math.sin(dlon/2)**2
     return 2*R*math.asin(math.sqrt(x))
 
-# ---------- ROUTING ----------
+# ---------------- GEO + ROUTING ----------------
 
 async def geocode(q):
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as c:
-            r = await c.get(
-                "https://nominatim.openstreetmap.org/search",
-                params={
-                    "q": q + ", Telangana, India",
-                    "format": "json",
-                    "limit": 1
-                },
-                headers={"User-Agent": "SafeRouteAI"}
-            )
-
-            j = r.json()
-            if not j:
-                raise HTTPException(status_code=404, detail="Location not found")
-
-            return float(j[0]["lat"]), float(j[0]["lon"])
-
-    except Exception:
-        raise HTTPException(status_code=503, detail="Geocoding service unavailable. Try again.")
-
+    async with httpx.AsyncClient(timeout=20.0) as c:
+        r = await c.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": q + ", India", "format":"json", "limit":1},
+            headers={"User-Agent":"SafeRouteAI"}
+        )
+        j = r.json()
+        if not j:
+            raise HTTPException(404,"Location not found")
+        return float(j[0]["lat"]), float(j[0]["lon"])
 
 async def routes(a,b,c,d):
     async with httpx.AsyncClient(timeout=30.0) as h:
-        r=await h.get(f"https://router.project-osrm.org/route/v1/driving/{b},{a};{d},{c}",
-        params={"alternatives":"true","geometries":"geojson"})
+        r = await h.get(
+            f"https://router.project-osrm.org/route/v1/driving/{b},{a};{d},{c}",
+            params={"alternatives":"true","geometries":"geojson"}
+        )
         return r.json()["routes"]
 
-# ---------- HEATMAP DATA ----------
+# ---------------- HEATMAP ----------------
 
 @app.get("/heatmap")
 def heatmap():
-    crimes=load(CRIME_FILE)
-    pts=[]
-    for v in crimes.values():
-        for c in v:
-            pts.append([c["lat"],c["lon"],1])
-    return pts
-@app.get("/crimes")
-def get_crimes():
     crimes = load(CRIME_FILE)
     pts = []
     for v in crimes.values():
         for c in v:
+            pts.append([c["lat"],c["lon"],1])
+    return pts
+
+@app.get("/crimes")
+def get_crimes():
+    pts=[]
+    for v in load(CRIME_FILE).values():
+        for c in v:
             pts.append(c)
     return pts
 
-# ---------- REPORT CRIME ----------
+# ---------------- REPORT CRIME ----------------
 
 @app.post("/report")
 def report(r:CrimeReport):
-    data=load(CRIME_FILE)
-    k=f"{round(r.lat,4)},{round(r.lon,4)}"
+    data = load(CRIME_FILE)
+    k = f"{round(r.lat,4)},{round(r.lon,4)}"
     data.setdefault(k,[]).append({"lat":r.lat,"lon":r.lon,"type":r.type})
     save(CRIME_FILE,data)
     return {"ok":True}
 
-# ---------- COMMENTS ----------
+# ---------------- COMMENTS ----------------
 
 @app.post("/comment")
 def comment(c:Comment):
-    d=load(COMMENT_FILE)
+    d = load(COMMENT_FILE)
     d.setdefault(c.place_id,[]).append({"text":c.text,"votes":0})
     save(COMMENT_FILE,d)
     return d[c.place_id]
-@app.post("/sos")
-async def sos(data: dict):
-
-    lat = data["lat"]
-    lon = data["lon"]
-
-    send_email_alert(lat, lon)
-
-    return {"status": "sent"}
 
 @app.post("/vote")
 def vote(v:Vote):
-    d=load(COMMENT_FILE)
-    d[v.place_id][v.idx]["votes"]+=v.delta
+    d = load(COMMENT_FILE)
+    d[v.place_id][v.idx]["votes"] += v.delta
     save(COMMENT_FILE,d)
     return d[v.place_id]
 
@@ -150,33 +134,42 @@ def vote(v:Vote):
 def get_comments(pid:str):
     return load(COMMENT_FILE).get(pid,[])
 
-# ---------- MAIN ROUTE ----------
+# ---------------- ROUTE FINDER ----------------
 
 @app.post("/route")
 async def route(r:RouteReq):
-    a,b=await geocode(r.source)
-    c,d=await geocode(r.destination)
-    rs=await routes(a,b,c,d)
 
+    a,b = await geocode(r.source)
+    c,d = await geocode(r.destination)
+    rs = await routes(a,b,c,d)
+
+    crimes = load(CRIME_FILE)
     out=[]
+
     for x in rs:
         risk=[]
         for p in x["geometry"]["coordinates"][::20]:
-            crimes=load(CRIME_FILE)
-            score=0
-            for k,v in crimes.items():
+            s=0
+            for v in crimes.values():
                 for z in v:
-                    score+=1/(1+hav(p[1],p[0],z["lat"],z["lon"]))
-            risk.append(score)
-        danger=np.mean(risk) if risk else 0
-        out.append({"polyline":x["geometry"]["coordinates"],"risk":danger})
+                    s += 1/(1+hav(p[1],p[0],z["lat"],z["lon"]))
+            risk.append(s)
+
+        out.append({
+            "polyline":x["geometry"]["coordinates"],
+            "risk":np.mean(risk) if risk else 0
+        })
 
     out.sort(key=lambda x:x["risk"])
     return {"routes":out}
 
-@app.get("/",response_class=HTMLResponse)
-def root():
-    return open("index.html","r",encoding="utf8").read()
+# ---------------- SOS EMAIL ----------------
+
+@app.post("/sos")
+async def sos(data: dict):
+    send_email_alert(data["lat"],data["lon"])
+    return {"sent":True}
+
 def send_email_alert(lat, lon):
 
     EMAIL = "nagacharanmedoji@gmail.com"
@@ -188,25 +181,21 @@ def send_email_alert(lat, lon):
     msg["From"] = EMAIL
     msg["To"] = TO
 
-    maps = f"https://maps.google.com/?q={lat},{lon}"
-
     msg.set_content(f"""
-🚨 EMERGENCY ALERT 🚨
-
-User sent SOS!
+EMERGENCY ALERT
 
 Latitude: {lat}
 Longitude: {lon}
 
-Live Map:
-{maps}
+https://maps.google.com/?q={lat},{lon}
 """)
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(EMAIL, PASSWORD)
-            server.send_message(msg)
-            print("✅ SOS Email Sent")
+    with smtplib.SMTP_SSL("smtp.gmail.com",465) as s:
+        s.login(EMAIL,PASSWORD)
+        s.send_message(msg)
 
-    except Exception as e:
-        print("❌ Email failed:", e)
+# ---------------- ROOT ----------------
+
+@app.get("/",response_class=HTMLResponse)
+def root():
+    return open("index.html","r",encoding="utf8").read()
