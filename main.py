@@ -106,13 +106,25 @@ def get_crimes():
 
 # ---------------- REPORT CRIME ----------------
 
+from datetime import datetime
+
 @app.post("/report")
 def report(r:CrimeReport):
     data = load(CRIME_FILE)
+
     k = f"{round(r.lat,4)},{round(r.lon,4)}"
-    data.setdefault(k,[]).append({"lat":r.lat,"lon":r.lon,"type":r.type})
-    save(CRIME_FILE,data)
-    return {"ok":True}
+
+    data.setdefault(k, []).append({
+        "lat": r.lat,
+        "lon": r.lon,
+        "type": r.type,
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M")
+    })
+
+    save(CRIME_FILE, data)
+
+    return {"ok": True}
+
 
 # ---------------- COMMENTS ----------------
 

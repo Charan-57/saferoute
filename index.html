@@ -306,15 +306,23 @@ let cr=await fetch("/crimes");
 let cj=await cr.json();
 
 cj.forEach(p=>{
-let m=L.circleMarker([p.lat,p.lon],{
+let popup = `
+<b>🚨 Crime:</b> ${p.type}<br>
+<b>🕒 Time:</b> ${p.time || "Unknown"}
+`;
+
+let m = L.circleMarker([p.lat,p.lon],{
 radius:7,
 color:"#ef4444",
 fillColor:"#ef4444",
 fillOpacity:.8
-}).addTo(map).bindPopup("🚨 Reported Area");
+})
+.addTo(map)
+.bindPopup(popup);
+
 crimeMarkers.push(m);
 });
-}
+
 
 async function submitReport(){
 
