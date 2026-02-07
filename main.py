@@ -5,6 +5,9 @@ from pydantic import BaseModel
 import json, os, math
 import numpy as np
 import httpx
+import smtplib
+from email.message import EmailMessage
+
 
 app = FastAPI()
 
@@ -126,6 +129,15 @@ def comment(c:Comment):
     d.setdefault(c.place_id,[]).append({"text":c.text,"votes":0})
     save(COMMENT_FILE,d)
     return d[c.place_id]
+@app.post("/sos")
+async def sos(data: dict):
+
+    lat = data["lat"]
+    lon = data["lon"]
+
+    send_email_alert(lat, lon)
+
+    return {"status": "sent"}
 
 @app.post("/vote")
 def vote(v:Vote):
@@ -165,3 +177,32 @@ async def route(r:RouteReq):
 @app.get("/",response_class=HTMLResponse)
 def root():
     return open("index.html","r",encoding="utf8").read()
+def send_email_alert(lat, lon):
+
+    EMAIL = "nagacharanmedoji@gmail.com"
+    PASSWORD = "nfqt bbgi qsda ovcm"
+    TO = "ajaykumarraovemula2004@gmail.com"
+
+    msg = EmailMessage()
+    msg["Subject"] = "🚨 SafeRoute SOS Alert"
+    msg["From"] = EMAIL
+    msg["To"] = TO
+
+    maps = f"https://maps.google.com/?q={lat},{lon}"
+
+    msg.set_content(f"""
+🚨 EMERGENCY ALERT 🚨
+
+User sent SOS!
+
+Latitude: {lat}
+Longitude: {lon}
+
+Live Map:
+{maps}
+""")
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(EMAIL, PASSWORD)
+        server.send_message(msg)
+
